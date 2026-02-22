@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Clinic System</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { font-family: Arial; padding: 15px; background: #f2f2f2; }
+        input, button { width: 100%; padding: 12px; margin-top: 10px; font-size: 16px; box-sizing: border-box; }
+        button { background: #2e7d32; color: white; border: none; cursor: pointer; }
+        button:hover { background: #1b5e20; }
+        .patient { background: white; padding: 10px; margin-top: 10px; border-radius: 5px; }
+        #search { margin-top: 20px; }
+    </style>
+</head>
+<body>
+
+<h2>إضافة مريض</h2>
+
+<input id="name" placeholder="اسم المريض">
+<input id="phone" placeholder="رقم الموبايل">
+<input id="age" placeholder="السن">
+
+<button onclick="addPatient()">إضافة مريض</button>
+
+<h3>بحث عن مريض</h3>
+<input id="search" placeholder="ابحث بالاسم أو رقم الموبايل" onkeyup="filterPatients()">
+
+<h3>قائمة المرضى</h3>
+<div id="patientsList"></div>
+
+<script>
+const API = "http://192.168.1.38:8000";
+
+let patients = []; // لتخزين كل المرضى للبحث
+
+window.onload = loadPatients;
+
+function loadPatients() {
+    fetch(API + "/patients")
+    .then(res => res.json())
+    .then(data => {
+        patients = data;
+        renderPatients(patients);
+    });
+}
+
+function renderPatients(list) {
+    const container = document.getElementById("patientsList");
+    container.innerHTML = "";
+
+    list.forEach(p => {
+        const div = document.createElement("div");
+        div.className = "patient";
+        div.innerHTML = "<b>" + p.name + "</b> | " + p.phone + " | " + (p.age || "-");
+        container.prepend(div);
+    });
+}
+
+function addPatient() {
+    const nameInput = document.getElementById("name");
+    const phoneInput = document.getElementById("phone");
+    const ageInput = document.getElementById("age");
+
+    const name = nameInput.value.trim();
+    const phone = phoneInput.value.trim();
+    const age = ageInput.value.trim();
+
+    if (!name || !phone || !age) {
+        alert("اكتب الاسم والرقم والسن");
+        return;
+    }
+
+    fetch(API + "/patients", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, phone, age })
+    })
+    .then(res => {
+        if(res.ok) {
+            patients.push({name, phone, age});
+            renderPatients(patients);
+            nameInput.value = "";
+            phoneInput.value = "";
+            ageInput.value = "";
+        } else {
+            res.json().then(data => alert(data.detail));
+        }
+    });
+}
+
+function filterPatients() {
+    const term = document.getElementById("search").value.toLowerCase();
+    const filtered = patients.filter(p => 
+        p.name.toLowerCase().includes(term) || 
+        p.phone.includes(term)
+    );
+    renderPatients(filtered);
+}
+</script>
+
+</body>
+</html>
