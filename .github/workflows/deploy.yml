@@ -1,0 +1,43 @@
+name: Build & Push to GitHub Container Registry
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      # 1. نزّل الكود
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 2. سجّل دخول لـ GitHub Container Registry
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # 3. ابني وابعت صورة الـ App
+      - name: Build & Push App Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/clinic-app:latest
+
+      # 4. ابني وابعت صورة الـ PostgreSQL
+      - name: Build & Push DB Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile.db
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/clinic-db:latest
