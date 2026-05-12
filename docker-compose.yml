@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  app:
+    image: ghcr.io/${GITHUB_USERNAME}/clinic-app:latest
+    container_name: clinic_app
+    restart: always
+    ports:
+      - "8000:8000"
+    environment:
+      - SECRET_KEY=${SECRET_KEY}
+      - DATABASE_URL=postgresql://clinic_user:${DB_PASSWORD}@db:5432/clinic_db
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - uploads_data:/app/static/uploads
+    networks:
+      - clinic_network
+
+  db:
+    image: ghcr.io/${GITHUB_USERNAME}/clinic-db:latest
+    container_name: clinic_db
+    restart: always
+    environment:
+      - POSTGRES_USER=clinic_user
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_DB=clinic_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U clinic_user -d clinic_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - clinic_network
+
+volumes:
+  postgres_data:
+  uploads_data:
+
+networks:
+  clinic_network:
+    driver: bridge

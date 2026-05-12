@@ -1,0 +1,10 @@
+FROM postgres:15-alpine
+
+# اسم قاعدة البيانات الافتراضية
+ENV POSTGRES_DB=clinic_db
+ENV POSTGRES_USER=clinic_user
+
+# لو عندك init scripts تحطها هنا
+# COPY init.sql /docker-entrypoint-initdb.d/
+
+EXPOSE 5432
