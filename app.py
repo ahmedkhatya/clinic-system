@@ -11,7 +11,13 @@ import os, urllib.parse
 
 app = Flask(__name__)
 app.config['SECRET_KEY']             = os.environ.get('SECRET_KEY', 'clinic_secret_v3')
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///clinic.db'
+
+# يقرأ DATABASE_URL من الـ environment (PostgreSQL) ولو مش موجود يستخدم SQLite محلي
+DATABASE_URL = os.environ.get('DATABASE_URL', 'sqlite:///clinic.db')
+if DATABASE_URL.startswith('postgres://'):
+    DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
+app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
+
 app.config['UPLOAD_FOLDER']          = 'static/uploads'
 app.config['MAX_CONTENT_LENGTH']     = 16 * 1024 * 1024
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'pdf'}
@@ -437,6 +443,7 @@ def examine_patient(visit_id):
         visit.price             = float(request.form.get('price', 0) or 0)
         visit.status            = 'done'
         visit.doctor_id         = current_user.id
+        payment_method           = request.form.get('payment_method', 'cash')
 
         # رفع ملفات
         for file in request.files.getlist('attachments'):
@@ -452,11 +459,12 @@ def examine_patient(visit_id):
         # تسجيل الإيراد تلقائياً
         if visit.price > 0:
             db.session.add(FinancialEntry(
-                clinic_id   = visit.clinic_id,
-                category    = 'كشف',
-                amount      = visit.price,
-                description = f'{visit.visit_type} - {patient.name}',
-                entry_type  = 'income'
+                clinic_id      = visit.clinic_id,
+                category       = 'كشف',
+                amount         = visit.price,
+                description    = f'{visit.visit_type} - {patient.name}',
+                entry_type     = 'income',
+                payment_method = payment_method
             ))
             db.session.commit()
 
@@ -510,19 +518,34 @@ def manage_inventory(clinic_id):
     if request.method == 'POST':
         action = request.form.get('action', 'add')
         if action == 'add':
+            start_d  = request.form.get('start_date') or None
+            expiry_d = request.form.get('expiry_date') or None
             db.session.add(Inventory(
                 clinic_id    = clinic.id,
                 item_name    = request.form['name'],
                 quantity     = int(request.form['qty']),
                 min_quantity = int(request.form['min']),
-                unit         = request.form.get('unit', 'قطعة')
+                unit         = request.form.get('unit', 'قطعة'),
+                start_date   = datetime.strptime(start_d, '%Y-%m-%d').date() if start_d else None,
+                expiry_date  = datetime.strptime(expiry_d, '%Y-%m-%d').date() if expiry_d else None,
             ))
             db.session.commit()
             flash('✅ تم الإضافة', 'success')
         elif action == 'update_qty':
             item = Inventory.query.filter_by(id=request.form['item_id'], clinic_id=clinic.id).first()
             if item:
-                item.quantity = int(request.form.get('new_qty', item.quantity))
+                # زيادة الكمية بدل استبدالها بالكامل (دعم "تزويد المخزون")
+                add_qty = request.form.get('add_qty')
+                if add_qty:
+                    item.quantity += int(add_qty)
+                else:
+                    item.quantity = int(request.form.get('new_qty', item.quantity))
+                start_d  = request.form.get('start_date')
+                expiry_d = request.form.get('expiry_date')
+                if start_d:
+                    item.start_date = datetime.strptime(start_d, '%Y-%m-%d').date()
+                if expiry_d:
+                    item.expiry_date = datetime.strptime(expiry_d, '%Y-%m-%d').date()
                 db.session.commit()
                 flash('✅ تم التحديث', 'success')
         elif action == 'delete':
@@ -534,7 +557,18 @@ def manage_inventory(clinic_id):
         return redirect(url_for('manage_inventory', clinic_id=clinic.id))
 
     items = Inventory.query.filter_by(clinic_id=clinic.id).order_by(Inventory.quantity).all()
-    return render_template('admin_inventory.html', clinic=clinic, items=items)
+
+    # تنبيهات: نقص كمية + قرب انتهاء الصلاحية (خلال 30 يوم) + صلاحية منتهية
+    from datetime import timedelta
+    today      = date.today()
+    soon       = today + timedelta(days=30)
+    low_items     = [i for i in items if i.quantity <= i.min_quantity]
+    expiring_soon = [i for i in items if i.expiry_date and today <= i.expiry_date <= soon]
+    expired_items = [i for i in items if i.expiry_date and i.expiry_date < today]
+
+    return render_template('admin_inventory.html', clinic=clinic, items=items,
+                           low_items=low_items, expiring_soon=expiring_soon,
+                           expired_items=expired_items, today=today)
 
 
 @app.route('/clinic/<int:clinic_id>/finances', methods=['GET', 'POST'])
@@ -544,11 +578,12 @@ def manage_finances(clinic_id):
     clinic = get_clinic_or_403(clinic_id)
     if request.method == 'POST':
         db.session.add(FinancialEntry(
-            clinic_id   = clinic.id,
-            category    = request.form['category'],
-            amount      = float(request.form['amount']),
-            description = request.form.get('desc', ''),
-            entry_type  = request.form.get('entry_type', 'expense')
+            clinic_id      = clinic.id,
+            category       = request.form['category'],
+            amount         = float(request.form['amount']),
+            description    = request.form.get('desc', ''),
+            entry_type     = request.form.get('entry_type', 'expense'),
+            payment_method = request.form.get('payment_method', 'cash'),
         ))
         db.session.commit()
         flash('✅ تم التسجيل', 'success')
@@ -557,9 +592,19 @@ def manage_finances(clinic_id):
     entries       = FinancialEntry.query.filter_by(clinic_id=clinic.id).order_by(FinancialEntry.date.desc()).all()
     total_income  = sum(e.amount for e in entries if e.entry_type == 'income')
     total_expense = sum(e.amount for e in entries if e.entry_type == 'expense')
+
+    # تقسيم الإيرادات حسب وسيلة الدفع
+    income_entries = [e for e in entries if e.entry_type == 'income']
+    by_method = {
+        'cash':          sum(e.amount for e in income_entries if e.payment_method == 'cash'),
+        'vodafone_cash': sum(e.amount for e in income_entries if e.payment_method == 'vodafone_cash'),
+        'visa':          sum(e.amount for e in income_entries if e.payment_method == 'visa'),
+    }
+
     return render_template('admin_finances.html',
                            clinic=clinic, entries=entries,
-                           total_income=total_income, total_expense=total_expense)
+                           total_income=total_income, total_expense=total_expense,
+                           by_method=by_method)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
