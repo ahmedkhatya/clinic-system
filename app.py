@@ -158,7 +158,7 @@ def manage_users():
                 u = User(
                     clinic_id = int(cid) if cid else None,
                     username  = request.form['username'],
-                    password  = generate_password_hash(request.form['password']),
+                    password  = generate_password_hash(request.form['password'], method='pbkdf2:sha256'),
                     role      = request.form['role'],
                     name      = request.form['name'],
                 )
@@ -617,7 +617,7 @@ with app.app_context():
     if not User.query.filter_by(username='admin').first():
         db.session.add(User(
             username='admin',
-            password=generate_password_hash('123'),
+            password=generate_password_hash('123', method='pbkdf2:sha256'),
             role='superadmin',
             name='Super Admin'
         ))
@@ -638,10 +638,10 @@ with app.app_context():
         db.session.commit()
 
         db.session.add(User(username='doctor1',
-                            password=generate_password_hash('123'),
+                            password=generate_password_hash('123', method='pbkdf2:sha256'),
                             role='doctor', name='د. محمد يوسف', clinic_id=c.id))
         db.session.add(User(username='nurse1',
-                            password=generate_password_hash('123'),
+                            password=generate_password_hash('123', method='pbkdf2:sha256'),
                             role='nurse', name='الممرضة سارة', clinic_id=c.id))
         db.session.commit()
 
