@@ -10,8 +10,8 @@
         </a>
     </div>
 
-    <!-- ملخص -->
-    <div class="row g-3 mb-4">
+    <!-- ملخص عام -->
+    <div class="row g-3 mb-3">
         <div class="col-sm-4">
             <div class="stat-card" style="background:linear-gradient(135deg,#1a9e6a,#27ae60)">
                 <div class="stat-num">{{ "%.0f"|format(total_income) }} ج</div>
@@ -28,6 +28,28 @@
             <div class="stat-card" style="background:linear-gradient(135deg,#1a6eb5,#2196f3)">
                 <div class="stat-num">{{ "%.0f"|format(total_income - total_expense) }} ج</div>
                 <div class="stat-label"><i class="bi bi-graph-up me-1"></i>صافي الربح</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- تقسيم الإيرادات حسب وسيلة الدفع -->
+    <div class="row g-3 mb-4">
+        <div class="col-sm-4">
+            <div class="stat-card" style="background:linear-gradient(135deg,#2d3436,#636e72)">
+                <div class="stat-num">{{ "%.0f"|format(by_method.cash) }} ج</div>
+                <div class="stat-label"><i class="bi bi-cash me-1"></i>كاش</div>
+            </div>
+        </div>
+        <div class="col-sm-4">
+            <div class="stat-card" style="background:linear-gradient(135deg,#d63031,#e84393)">
+                <div class="stat-num">{{ "%.0f"|format(by_method.vodafone_cash) }} ج</div>
+                <div class="stat-label"><i class="bi bi-phone me-1"></i>فودافون كاش</div>
+            </div>
+        </div>
+        <div class="col-sm-4">
+            <div class="stat-card" style="background:linear-gradient(135deg,#0984e3,#74b9ff)">
+                <div class="stat-num">{{ "%.0f"|format(by_method.visa) }} ج</div>
+                <div class="stat-label"><i class="bi bi-credit-card me-1"></i>فيزا</div>
             </div>
         </div>
     </div>
@@ -71,6 +93,14 @@
                             <input type="number" name="amount" class="form-control" min="0" step="0.5" required placeholder="0.00">
                         </div>
                         <div class="mb-3">
+                            <label>وسيلة الدفع</label>
+                            <select name="payment_method" class="form-select">
+                                <option value="cash">💵 كاش</option>
+                                <option value="vodafone_cash">📱 فودافون كاش</option>
+                                <option value="visa">💳 فيزا</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
                             <label>الوصف</label>
                             <input type="text" name="desc" class="form-control" placeholder="وصف مختصر (اختياري)">
                         </div>
@@ -96,6 +126,7 @@
                                 <th>التاريخ</th>
                                 <th>النوع</th>
                                 <th>التصنيف</th>
+                                <th>وسيلة الدفع</th>
                                 <th>الوصف</th>
                                 <th>المبلغ</th>
                             </tr>
@@ -112,6 +143,15 @@
                                     {% endif %}
                                 </td>
                                 <td>{{ entry.category }}</td>
+                                <td>
+                                    {% if entry.payment_method == 'cash' %}
+                                    <span class="badge bg-secondary"><i class="bi bi-cash me-1"></i>كاش</span>
+                                    {% elif entry.payment_method == 'vodafone_cash' %}
+                                    <span class="badge" style="background:#e84393"><i class="bi bi-phone me-1"></i>فودافون كاش</span>
+                                    {% elif entry.payment_method == 'visa' %}
+                                    <span class="badge bg-primary"><i class="bi bi-credit-card me-1"></i>فيزا</span>
+                                    {% else %}—{% endif %}
+                                </td>
                                 <td class="small text-muted">{{ entry.description or '—' }}</td>
                                 <td class="fw-bold {% if entry.entry_type == 'income' %}text-success{% else %}text-danger{% endif %}">
                                     {{ "%.2f"|format(entry.amount) }} ج
@@ -119,7 +159,7 @@
                             </tr>
                             {% else %}
                             <tr>
-                                <td colspan="5" class="text-center text-muted py-4">لا يوجد قيود مسجلة</td>
+                                <td colspan="6" class="text-center text-muted py-4">لا يوجد قيود مسجلة</td>
                             </tr>
                             {% endfor %}
                         </tbody>
