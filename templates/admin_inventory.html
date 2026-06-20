@@ -10,6 +10,37 @@
         </a>
     </div>
 
+    <!-- تنبيهات -->
+    {% if low_items %}
+    <div class="alert alert-danger d-flex align-items-start gap-2">
+        <i class="bi bi-exclamation-triangle-fill fs-5"></i>
+        <div>
+            <strong>كمية ناقصة:</strong>
+            {% for i in low_items %}<span class="badge bg-danger ms-1">{{ i.item_name }} ({{ i.quantity }} {{ i.unit or '' }})</span>{% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% if expired_items %}
+    <div class="alert alert-dark d-flex align-items-start gap-2">
+        <i class="bi bi-x-octagon-fill fs-5"></i>
+        <div>
+            <strong>صلاحية منتهية:</strong>
+            {% for i in expired_items %}<span class="badge bg-dark ms-1">{{ i.item_name }} ({{ i.expiry_date.strftime('%d/%m/%Y') }})</span>{% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% if expiring_soon %}
+    <div class="alert alert-warning d-flex align-items-start gap-2">
+        <i class="bi bi-clock-history fs-5"></i>
+        <div>
+            <strong>صلاحية قريبة الانتهاء (خلال 30 يوم):</strong>
+            {% for i in expiring_soon %}<span class="badge bg-warning text-dark ms-1">{{ i.item_name }} ({{ i.expiry_date.strftime('%d/%m/%Y') }})</span>{% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
     <div class="row g-4">
         <!-- فورم الإضافة -->
         <div class="col-lg-4">
@@ -44,6 +75,16 @@
                                 <option value="لفافة">لفافة</option>
                             </select>
                         </div>
+                        <div class="row g-2 mb-3">
+                            <div class="col-6">
+                                <label>تاريخ الإضافة</label>
+                                <input type="date" name="start_date" class="form-control">
+                            </div>
+                            <div class="col-6">
+                                <label>تاريخ انتهاء الصلاحية</label>
+                                <input type="date" name="expiry_date" class="form-control">
+                            </div>
+                        </div>
                         <button type="submit" class="btn btn-warning w-100 fw-bold">
                             <i class="bi bi-plus-lg me-1"></i> إضافة للمخزن
                         </button>
@@ -66,9 +107,9 @@
                                 <tr>
                                     <th>الصنف</th>
                                     <th>الكمية</th>
-                                    <th>الحد الأدنى</th>
+                                    <th>الصلاحية</th>
                                     <th>الحالة</th>
-                                    <th>تحديث الكمية</th>
+                                    <th>زوّد الكمية</th>
                                     <th>حذف</th>
                                 </tr>
                             </thead>
@@ -81,24 +122,46 @@
                                             {{ item.quantity }}
                                         </span>
                                         <span class="text-muted small">{{ item.unit or '' }}</span>
+                                        <div class="text-muted small">الحد الأدنى: {{ item.min_quantity }}</div>
                                     </td>
-                                    <td class="text-muted">{{ item.min_quantity }}</td>
+                                    <td class="small">
+                                        {% if item.expiry_date %}
+                                            {% if item.expiry_date < today %}
+                                            <span class="badge bg-dark">منتهي {{ item.expiry_date.strftime('%d/%m/%Y') }}</span>
+                                            {% elif item in expiring_soon %}
+                                            <span class="badge bg-warning text-dark">{{ item.expiry_date.strftime('%d/%m/%Y') }}</span>
+                                            {% else %}
+                                            <span class="text-muted">{{ item.expiry_date.strftime('%d/%m/%Y') }}</span>
+                                            {% endif %}
+                                        {% else %}
+                                        <span class="text-muted">—</span>
+                                        {% endif %}
+                                    </td>
                                     <td>
                                         {% if item.quantity <= item.min_quantity %}
                                         <span class="badge bg-danger"><i class="bi bi-exclamation-triangle me-1"></i>ناقص</span>
+                                        {% elif item.expiry_date and item.expiry_date < today %}
+                                        <span class="badge bg-dark"><i class="bi bi-x-octagon me-1"></i>منتهي</span>
+                                        {% elif item in expiring_soon %}
+                                        <span class="badge bg-warning text-dark"><i class="bi bi-clock-history me-1"></i>قريب الانتهاء</span>
                                         {% else %}
                                         <span class="badge bg-success"><i class="bi bi-check me-1"></i>كافي</span>
                                         {% endif %}
                                     </td>
                                     <td>
-                                        <form method="POST" class="d-flex gap-1">
+                                        <form method="POST" class="d-flex flex-column gap-1" style="min-width:160px">
                                             <input type="hidden" name="action" value="update_qty">
                                             <input type="hidden" name="item_id" value="{{ item.id }}">
-                                            <input type="number" name="new_qty" class="form-control form-control-sm"
-                                                   value="{{ item.quantity }}" min="0" style="width:80px">
-                                            <button type="submit" class="btn btn-sm btn-outline-primary">
-                                                <i class="bi bi-check"></i>
-                                            </button>
+                                            <div class="d-flex gap-1">
+                                                <input type="number" name="add_qty" class="form-control form-control-sm"
+                                                       placeholder="أضف كمية" min="1" style="width:90px">
+                                                <button type="submit" class="btn btn-sm btn-success">
+                                                    <i class="bi bi-plus-lg"></i>
+                                                </button>
+                                            </div>
+                                            <input type="date" name="expiry_date" class="form-control form-control-sm"
+                                                   placeholder="تحديث الصلاحية"
+                                                   value="{{ item.expiry_date.strftime('%Y-%m-%d') if item.expiry_date else '' }}">
                                         </form>
                                     </td>
                                     <td>
