@@ -27,7 +27,7 @@ class User(db.Model, UserMixin):
     id         = db.Column(db.Integer, primary_key=True)
     clinic_id  = db.Column(db.Integer, db.ForeignKey('clinic.id'), nullable=True)  # None = super admin
     username   = db.Column(db.String(150), unique=True, nullable=False)
-    password   = db.Column(db.String(150), nullable=False)
+    password   = db.Column(db.String(255), nullable=False)
     role       = db.Column(db.String(50),  nullable=False)  # 'superadmin' | 'doctor' | 'nurse'
     name       = db.Column(db.String(150))
 
@@ -75,13 +75,16 @@ class Inventory(db.Model):
     quantity     = db.Column(db.Integer, default=0)
     min_quantity = db.Column(db.Integer, default=5)
     unit         = db.Column(db.String(50))
+    start_date   = db.Column(db.Date)    # تاريخ بداية الصلاحية / الإضافة
+    expiry_date  = db.Column(db.Date)    # تاريخ انتهاء الصلاحية
 
 
 class FinancialEntry(db.Model):
-    id          = db.Column(db.Integer, primary_key=True)
-    clinic_id   = db.Column(db.Integer, db.ForeignKey('clinic.id'), nullable=False)
-    category    = db.Column(db.String(100))
-    amount      = db.Column(db.Float, nullable=False)
-    description = db.Column(db.String(300))
-    entry_type  = db.Column(db.String(20), default='expense')   # 'income' | 'expense'
-    date        = db.Column(db.DateTime, default=datetime.now)
+    id              = db.Column(db.Integer, primary_key=True)
+    clinic_id       = db.Column(db.Integer, db.ForeignKey('clinic.id'), nullable=False)
+    category        = db.Column(db.String(100))
+    amount          = db.Column(db.Float, nullable=False)
+    description     = db.Column(db.String(300))
+    entry_type      = db.Column(db.String(20), default='expense')   # 'income' | 'expense'
+    payment_method  = db.Column(db.String(30), default='cash')      # 'cash' | 'vodafone_cash' | 'visa'
+    date            = db.Column(db.DateTime, default=datetime.now)
